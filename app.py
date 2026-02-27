@@ -30,7 +30,9 @@ if st.button("🚀 เริ่มสร้างไฟล์ SRT (Process)"):
         try:
             with st.spinner('🤖 AI กำลังประมวลผล...'):
                 genai.configure(api_key=api_key_input)
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                
+                # model = genai.GenerativeModel('gemini-1.5-flash')
+                model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
                 
                 # Prompt สั่งงาน AI
                 prompt = f"""
