@@ -91,4 +91,37 @@ if st.button("🚀 เริ่มสร้างไฟล์ SRT"):
                 Create a standard .srt subtitle file from these lyrics:
                 {lyrics}
                 
-                Conditions
+                Conditions:
+                1. Start at {offset} seconds.
+                2. One line of lyrics per one SRT block.
+                3. STRICTLY output only the SRT code content.
+                """
+                
+                response = model.generate_content(prompt)
+                
+                if response.text:
+                    # ลบ tag ส่วนเกินออกถ้า AI เติมมา
+                    clean_srt = response.text.replace("```srt", "").replace("```", "").strip()
+
+                    st.success(f"✅ สำเร็จ! (ใช้โมเดล: {selected_model_name})")
+                    
+                    st.subheader("📄 Preview SRT")
+                    st.text_area("ผลลัพธ์:", value=clean_srt, height=200)
+                    
+                    # ปุ่มดาวน์โหลด
+                    file_name_output = f"{uploaded_file.name.rsplit('.', 1)[0]}.srt"
+                    st.download_button(
+                        label="📥 ดาวน์โหลดไฟล์ .srt",
+                        data=clean_srt,
+                        file_name=file_name_output,
+                        mime="text/plain"
+                    )
+                else:
+                    st.error("AI ประมวลผลสำเร็จแต่ไม่มีข้อความส่งกลับมา")
+
+        except Exception as e:
+            st.error(f"เกิดข้อผิดพลาด: {str(e)}")
+            st.info("คำแนะนำ: หากขึ้น 403 Leaked ให้สร้าง API Key ใหม่และห้ามนำไปแปะในโค้ดบน GitHub")
+
+st.markdown("---")
+st.caption("SRT Creator Tool v3.0 | Develop by K.Anuwat")
