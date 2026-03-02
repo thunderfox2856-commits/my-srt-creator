@@ -1,14 +1,14 @@
 import streamlit as st
 import google.generativeai as genai
 
-# --- 1. การตั้งค่าหน้าเว็บ ---
+# --- 1. ตั้งค่าหน้าเว็บ (Configuration) ---
 st.set_page_config(
     page_title="SRT Creator Pro", 
     page_icon="🎙️", 
     layout="centered"
 )
 
-# ส่วนแต่งสวยด้วย CSS
+# ตกแต่ง UI ด้วย CSS เพื่อความสวยงามและแสดงผลได้ดีทุกอุปกรณ์
 st.markdown("""
     <style>
     .stButton>button {
@@ -17,111 +17,139 @@ st.markdown("""
         background-color: #4CAF50;
         color: white;
         font-weight: bold;
+        transition: 0.3s;
+        border: none;
+        height: 3em;
     }
-    .main-title { text-align: center; color: #1E88E5; }
+    .stButton>button:hover {
+        background-color: #45a049;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .main-title { text-align: center; color: #1E88E5; margin-bottom: 0; }
+    .sub-title { text-align: center; color: #666; font-size: 0.9rem; margin-top: 5px; }
+    [data-testid="stSidebar"] {
+        background-color: #f8f9fa;
+    }
     </style>
     """, unsafe_allow_html=True)
 
 st.markdown("<h1 class='main-title'>🎵 SRT Creator</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center;'>Develop by K.Anuwat</p>", unsafe_allow_html=True)
+st.markdown("<p class='sub-title'>Develop by K.Anuwat</p>", unsafe_allow_html=True)
 st.divider()
 
-# --- 2. การจัดการ API Key ---
-# ตรวจสอบว่ามี Key ใน Secrets หรือไม่ ถ้าไม่มีให้แสดงช่องกรอกใน Sidebar
-if "GEMINI_API_KEY" in st.secrets and st.secrets["GEMINI_API_KEY"] != "":
-    api_key_input = st.secrets["GEMINI_API_KEY"]
-    st.sidebar.success("✅ ใช้ API Key จากระบบหลังบ้านแล้ว")
-else:
-    api_key_input = st.sidebar.text_input("🔑 ใส่ Gemini API Key ของคุณ:", type="password")
-    st.sidebar.warning("กรุณาใส่ API Key เพื่อใช้งาน")
-
-# --- 3. ส่วนรับข้อมูลจากผู้ใช้ ---
-with st.container():
-    st.subheader("📂 1. อัปโหลดและตั้งค่า")
-    uploaded_file = st.file_uploader("เลือกไฟล์เพลง (.mp3)", type=["mp3"])
+# --- 2. การจัดการ API Key ใน Sidebar ---
+with st.sidebar:
+    st.header("🔑 การตั้งค่า API")
     
+    # ตรวจสอบว่ามี Key ใน Secrets (หลังบ้าน) หรือไม่
+    if "GEMINI_API_KEY" in st.secrets and st.secrets["GEMINI_API_KEY"] != "":
+        api_key_input = st.secrets["GEMINI_API_KEY"]
+        st.success("✅ ระบบใช้ API Key กลางเรียบร้อยแล้ว")
+    else:
+        api_key_input = st.text_input("กรอก Gemini API Key ของคุณ:", type="password", help="นำรหัสจาก Google AI Studio มาวางที่นี่")
+        
+        if not api_key_input:
+            st.warning("⚠️ กรุณาใส่ API Key เพื่อเริ่มใช้งาน")
+            
+            # --- ส่วนลิงก์ไปหน้า Google AI Studio ตามที่คุณต้องการ ---
+            st.markdown("""
+                ---
+                ### 🚀 ยังไม่มี API Key?
+                หากคุณยังไม่มีรหัสใช้งาน สามารถกดลิงก์ด้านล่างเพื่อสร้างได้ฟรี:
+                
+                👉 **[คลิกที่นี่เพื่อรับ Gemini API Key](https://aistudio.google.com/app/apikey)**
+                
+                **ขั้นตอนการรับรหัส:**
+                1. ล็อกอินด้วยบัญชี Google
+                2. กดปุ่ม **Create API key**
+                3. ก๊อปปี้รหัส (ที่ขึ้นต้นด้วย AIza...) มาวางในช่องด้านบน
+            """)
+            st.divider()
+
+# --- 3. ส่วนรับข้อมูลหลัก (Main UI) ---
+col1, col2 = st.columns([1, 1])
+
+with col1:
+    st.subheader("📂 อัปโหลดไฟล์")
+    uploaded_file = st.file_uploader("เลือกไฟล์เพลง (.mp3)", type=["mp3"])
+
+with col2:
+    st.subheader("⏳ ตั้งค่าเวลา")
     offset = st.number_input(
-        "⏳ เริ่มร้องที่วินาทีที่ (Offset):", 
-        min_value=0.0, value=0.0, step=0.1
+        "เริ่มร้องวินาทีที่ (Offset):", 
+        min_value=0.0, value=0.0, step=0.1,
+        help="ระบุวินาทีที่เริ่มมีเสียงร้องประโยคแรก"
     )
 
-    st.subheader("📝 2. เนื้อเพลง (Lyrics)")
-    lyrics = st.text_area(
-        "วางเนื้อเพลงที่นี่ (แยก 1 ประโยคต่อ 1 บรรทัด)", 
-        placeholder="ตัวอย่าง:\nบรรทัดที่หนึ่ง\nบรรทัดที่สอง...",
-        height=200
-    )
+st.subheader("📝 เนื้อเพลง (Lyrics)")
+lyrics = st.text_area(
+    "วางเนื้อเพลง (แยก 1 ประโยคต่อ 1 บรรทัด)", 
+    placeholder="ตัวอย่าง:\nลืมตาขึ้นมาในตอนเช้า...\nมองไปรอบตัวไม่เห็นใคร...",
+    height=250
+)
 
-# --- 4. ส่วนประมวลผล ---
+# --- 4. ส่วนประมวลผล (Processing) ---
 if st.button("🚀 เริ่มสร้างไฟล์ SRT"):
     if not api_key_input:
-        st.error("❌ ไม่พบ API Key! กรุณากรอกที่แถบด้านซ้ายมือ (Sidebar)")
+        st.error("❌ ไม่พบ API Key! กรุณากรอกรหัสที่แถบด้านซ้าย (Sidebar)")
     elif not uploaded_file or not lyrics:
-        st.warning("⚠️ กรุณาอัปโหลดไฟล์เพลงและใส่เนื้อเพลงให้เรียบร้อย")
+        st.warning("⚠️ กรุณาอัปโหลดไฟล์เพลงและระบุเนื้อเพลงให้ครบถ้วน")
     else:
         try:
-            with st.spinner('🤖 AI กำลังประมวลผล...'):
-                # ตั้งค่า API
+            with st.spinner('🤖 AI กำลังประมวลผลและสร้างซับไตเติ้ล...'):
+                # ตั้งค่าระบบ AI
                 genai.configure(api_key=api_key_input)
                 
-                # ตรวจสอบโมเดลที่ใช้งานได้
-                all_models = [m.name for m in genai.list_models()]
-                
-                # ลำดับความสำคัญของโมเดลที่จะใช้
-                target_models = ['models/gemini-1.5-flash', 'models/gemini-1.5-pro', 'models/gemini-pro']
-                selected_model_name = ""
-                
-                for target in target_models:
-                    if target in all_models:
-                        selected_model_name = target
-                        break
-                
-                if not selected_model_name:
-                    # ถ้าหาตัวที่ระบุไม่เจอเลย ให้ลองเอาตัวแรกที่มี
-                    matching = [n for n in all_models if 'generateContent' in [m.supported_generation_methods for m in genai.list_models() if m.name == n][0]]
-                    if matching:
-                        selected_model_name = matching[0]
-                    else:
-                        st.error("❌ ไม่พบโมเดลที่รองรับใน API Key นี้")
-                        st.stop()
+                # ระบบค้นหาโมเดลที่ใช้งานได้อัตโนมัติ (Fallback System)
+                try:
+                    all_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+                except:
+                    all_models = ['models/gemini-1.5-flash']
 
-                # เริ่มสั่งงาน AI
+                target_models = ['models/gemini-1.5-flash', 'models/gemini-1.5-pro', 'models/gemini-pro']
+                selected_model_name = next((t for t in target_models if t in all_models), "models/gemini-1.5-flash")
+
                 model = genai.GenerativeModel(selected_model_name)
-                prompt = f"""
-                Create a standard .srt subtitle file from these lyrics:
-                {lyrics}
                 
-                Conditions:
-                1. Start at {offset} seconds.
-                2. One line of lyrics per one SRT block.
-                3. STRICTLY output only the SRT code content.
+                prompt = f"""
+                ภารกิจ: สร้างไฟล์ .srt มาตรฐาน
+                เนื้อเพลง: 
+                {lyrics}
+                เงื่อนไข:
+                1. เริ่มต้นบรรทัดแรกที่วินาทีที่ {offset}
+                2. จัดลำดับเวลาให้สัมพันธ์กับเนื้อเพลง (Force Align)
+                3. ส่งกลับเฉพาะโค้ดรูปแบบไฟล์ SRT เท่านั้น
                 """
                 
                 response = model.generate_content(prompt)
                 
                 if response.text:
-                    # ลบ tag ส่วนเกินออกถ้า AI เติมมา
+                    # ทำความสะอาดผลลัพธ์
                     clean_srt = response.text.replace("```srt", "").replace("```", "").strip()
 
-                    st.success(f"✅ สำเร็จ! (ใช้โมเดล: {selected_model_name})")
+                    st.success(f"✅ สร้างสำเร็จ! (โมเดล: {selected_model_name.split('/')[-1]})")
                     
                     st.subheader("📄 Preview SRT")
-                    st.text_area("ผลลัพธ์:", value=clean_srt, height=200)
+                    st.text_area("คุณสามารถแก้ไขจังหวะเวลาได้ที่นี่:", value=clean_srt, height=200)
                     
                     # ปุ่มดาวน์โหลด
-                    file_name_output = f"{uploaded_file.name.rsplit('.', 1)[0]}.srt"
+                    file_base_name = uploaded_file.name.rsplit('.', 1)[0]
                     st.download_button(
                         label="📥 ดาวน์โหลดไฟล์ .srt",
                         data=clean_srt,
-                        file_name=file_name_output,
+                        file_name=f"{file_base_name}.srt",
                         mime="text/plain"
                     )
                 else:
-                    st.error("AI ประมวลผลสำเร็จแต่ไม่มีข้อความส่งกลับมา")
+                    st.error("AI ไม่สามารถสร้างเนื้อหาได้ กรุณาลองตรวจสอบเนื้อเพลงอีกครั้ง")
 
         except Exception as e:
-            st.error(f"เกิดข้อผิดพลาด: {str(e)}")
-            st.info("คำแนะนำ: หากขึ้น 403 Leaked ให้สร้าง API Key ใหม่และห้ามนำไปแปะในโค้ดบน GitHub")
+            error_msg = str(e)
+            if "403" in error_msg:
+                st.error("❌ API Key ถูกระงับ (Leaked) หรือไม่มีสิทธิ์เข้าถึง")
+                st.info("โปรดสร้าง Key ใหม่ที่ลิงก์ใน Sidebar และห้ามโพสต์รหัสลงในที่สาธารณะ")
+            else:
+                st.error(f"เกิดข้อผิดพลาด: {error_msg}")
 
 st.markdown("---")
-st.caption("SRT Creator Tool v3.0 | Develop by K.Anuwat")
+st.caption("SRT Creator Tool v3.2 | Develop by K.Anuwat")
