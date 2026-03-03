@@ -8,7 +8,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# บังคับ CSS เพื่อแก้ปัญหาสีตัวอักษรและ Sidebar
+# บังคับ CSS เพื่อแก้ปัญหาสีตัวอักษรและ Sidebar (เพื่อให้เห็นชัดทุก Theme)
 st.markdown("""
     <style>
     [data-testid="stSidebar"] { background-color: #f8f9fa !important; }
@@ -65,9 +65,9 @@ with col1:
 with col2:
     offset = st.number_input("เริ่มร้องวินาทีที่ (Offset):", min_value=0.0, value=0.0, step=0.1)
 
-lyrics = st.text_area("วางเนื้อเพลง (แยก 1 ประโยคต่อ 1 บรรทัด)", height=200)
+lyrics = st.text_area("วางเนื้อเพลง (แยก 1 ประโยคต่อ 1 บรรทัด)", height=250, placeholder="วางเนื้อเพลงที่นี่...")
 
-# --- 4. ประมวลผลและแก้ปัญหา Model Not Found ---
+# --- 4. ประมวลผลแบบ Strict Line-by-Line ---
 if st.button("🚀 เริ่มสร้างไฟล์ SRT"):
     if not api_key_input:
         st.error("❌ กรุณากรอก API Key ก่อนครับ")
@@ -75,48 +75,49 @@ if st.button("🚀 เริ่มสร้างไฟล์ SRT"):
         st.warning("⚠️ กรุณาใส่ข้อมูลให้ครบ")
     else:
         try:
-            with st.spinner('🤖 AI กำลังค้นหาโมเดลที่เหมาะสมและประมวลผล...'):
+            with st.spinner('🤖 AI กำลังประมวลผลแบบบรรทัดต่อบรรทัด...'):
                 genai.configure(api_key=api_key_input)
                 
-                # ค้นหาโมเดลที่มีอยู่จริงใน API Key นี้
-                available_models = []
-                for m in genai.list_models():
-                    if 'generateContent' in m.supported_generation_methods:
-                        available_models.append(m.name)
-                
-                # ลำดับการเลือกโมเดล (เน้นตัวที่เสถียรที่สุด)
-                selected_model = None
-                priority_list = [
-                    'models/gemini-1.5-flash-latest', 
-                    'models/gemini-1.5-flash', 
-                    'models/gemini-pro'
-                ]
-                
-                for target in priority_list:
-                    if target in available_models:
-                        selected_model = target
-                        break
-                
-                # ถ้าไม่เจอในรายการ ให้เอาตัวแรกที่รองรับ generateContent
-                if not selected_model and available_models:
-                    selected_model = available_models[0]
+                # ค้นหาโมเดลที่พร้อมใช้งาน
+                available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+                priority_list = ['models/gemini-1.5-flash-latest', 'models/gemini-1.5-flash', 'models/gemini-pro']
+                selected_model = next((target for target in priority_list if target in available_models), available_models[0] if available_models else None)
                 
                 if not selected_model:
-                    st.error("❌ ไม่พบโมเดลที่รองรับใน API Key นี้")
+                    st.error("❌ ไม่พบโมเดลที่รองรับ")
                     st.stop()
 
                 model = genai.GenerativeModel(selected_model)
-                prompt = f"Create a standard .srt file from these lyrics: {lyrics} starting at {offset}s. Output only SRT code."
+                
+                # ปรับ Prompt ให้สั่งงานแบบเด็ดขาด (Strict Instruction)
+                prompt = f"""
+                Task: Generate a standard .srt subtitle file.
+                Input Lyrics:
+                {lyrics}
+
+                Strict Rules:
+                1. START the first subtitle block at exactly {offset} seconds.
+                2. ONE LINE PER BLOCK: Each line of the input lyrics MUST be its own separate SRT subtitle block.
+                3. DO NOT combine multiple lines of lyrics into a single subtitle block.
+                4. Estimate the duration for each line naturally (approx 3-5 seconds per line).
+                5. Output ONLY the raw SRT code content.
+                """
                 
                 response = model.generate_content(prompt)
                 
                 if response.text:
                     clean_srt = response.text.replace("```srt", "").replace("```", "").strip()
-                    st.success(f"✅ สำเร็จ! (ใช้โมเดล: {selected_model})")
-                    st.text_area("📄 Preview:", value=clean_srt, height=200)
-                    st.download_button("📥 ดาวน์โหลด .srt", data=clean_srt, file_name=f"{uploaded_file.name.rsplit('.', 1)[0]}.srt")
+                    st.success(f"✅ สำเร็จ! (Mode: Strict Line-by-Line | Model: {selected_model})")
+                    st.text_area("📄 Preview:", value=clean_srt, height=300)
+                    
+                    st.download_button(
+                        label="📥 ดาวน์โหลด .srt",
+                        data=clean_srt,
+                        file_name=f"{uploaded_file.name.rsplit('.', 1)[0]}.srt",
+                        mime="text/plain"
+                    )
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาด: {str(e)}")
 
 st.markdown("---")
-st.caption("SRT Creator v3.4 | Model Auto-Fix | Develop by K.Anuwat")
+st.caption("SRT Creator v3.5 | Strict Line-by-Line Edition | Develop by K.Anuwat")
